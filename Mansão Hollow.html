@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mansão Hollow — 60 Segundos</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark;--bg:#0b0608;--fg:#e8dcd0;--ac:#c0262d}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+h1{font-size:1.3rem;letter-spacing:.2em;margin:12px 0 8px;color:var(--ac);text-transform:uppercase;text-align:center}
+#wrap{position:relative;width:100%;max-width:640px;padding:0 8px;box-sizing:border-box}
+canvas{width:100%;height:auto;display:block;background:#000;border:2px solid #3a1418;touch-action:none}
+#ov{position:absolute;inset:0 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(5,2,3,.88);padding:18px}
+#ov h2{color:var(--ac);font-size:1.6rem;margin:0 0 10px}
+#ov p{margin:6px 0;line-height:1.45;max-width:440px}
+button{margin-top:14px;font:inherit;font-size:1.1rem;padding:10px 26px;background:var(--ac);color:#fff;border:0;cursor:pointer;letter-spacing:.1em}
+button:hover{filter:brightness(1.2)}
+small{opacity:.7}
+</style>
+</head>
+<body>
+<h1>Mansão Hollow</h1>
+<div id="wrap">
+<canvas id="c" width="640" height="480"></canvas>
+<div id="ov"></div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+const W=640,H=480,TOTAL=60;let NEED=5,lvl=1,total=0,lives=3,ghosts=[];
+const baseWalls=[[120,0,16,150],[120,220,16,260],[260,100,200,16],[260,100,16,180],[260,330,16,150],[400,200,16,150],[400,200,140,16],[520,330,120,16],[200,380,60,16]];
+const extra=[[[60,330,70,16]],[[330,40,16,50],[330,400,16,60]],[[470,60,16,100],[180,150,60,16]]];
+let walls=baseWalls;
+const door={x:596,y:400,w:44,h:64};
+let state='menu',p,ghost,relics,left,got,score,keys={},ptr=null,last=0,msg='',shake=0;
+
+function hitWall(x,y,r){for(const w of walls){if(x+r>w[0]&&x-r<w[0]+w[2]&&y+r>w[1]&&y-r<w[1]+w[3])return true}return false}
+function start(){
+  p={x:50,y:240,r:10};
+  NEED=Math.min(12,4+lvl);
+  walls=baseWalls.concat(...extra.slice(0,Math.min(lvl-1,3)));
+  ghosts=[{x:600,y:40,a:0}];
+  if(lvl>=3)ghosts.push({x:330,y:460,a:0});
+  if(lvl>=5)ghosts.push({x:330,y:20,a:0});
+  relics=[];
+  while(relics.length<NEED){
+    const x=30+Math.random()*580,y=30+Math.random()*420;
+    if(hitWall(x,y,18)||Math.hypot(x-p.x,y-p.y)<90||(x>door.x-30&&y>door.y-30))continue;
+    if(relics.some(r=>Math.hypot(r.x-x,r.y-y)<70))continue;
+    relics.push({x,y});
+  }
+  left=TOTAL;got=0;msg='Fase '+lvl+': encontre as '+NEED+' velas...';shake=0;
+  ov.style.display='none';state='play';last=performance.now();
+}
+function end(win,why){
+  state=win?'win':'lose';
+  score=got*100+(win?Math.ceil(left)*20:0);if(win)total+=score;else{lives--;if(lives<=0)total+=score}
+  ov.style.display='flex';
+  ov.innerHTML=win
+   ?`<h2>FASE ${lvl} CONCLUÍDA</h2><p>Você escapou... mas algo mais rápido acordou dentro da mansão.</p><p>Velas: ${got}/${NEED} · Tempo restante: ${Math.ceil(left)}s</p><p><b>Pontos da fase: ${score} · Total: ${total}</b></p><p><small>Próxima fase: ${Math.min(12,5+lvl)} velas, fantasma mais rápido, lanterna menor${lvl+1>=3?', mais fantasmas':''}.</small></p><button id="b">Próxima fase (Espaço)</button>`
+   :(lives>0
+   ?`<h2>VOCÊ PERDEU UMA VIDA</h2><p>${why}</p><p>Vidas restantes: ${'❤️'.repeat(lives)}</p><p><small>A fase ${lvl} recomeça com novas posições das velas.</small></p><button id="b">Tentar de novo (Espaço)</button>`
+   :`<h2>FIM DE JOGO</h2><p>${why}</p><p>Suas 3 vidas acabaram na fase ${lvl}.</p><p><b>Pontuação total: ${total}</b></p><button id="b">Recomeçar do zero (Espaço)</button>`);
+  document.getElementById('b').onclick=win?()=>{lvl++;start()}:lives>0?start:()=>{lvl=1;total=0;lives=3;start()};
+}
+function menu(){
+  ov.innerHTML=`<h2>MANSÃO HOLLOW</h2><p>Você acordou trancado numa mansão abandonada. À meia-noite, o ritual termina e algo vai acordar.</p><p>Você tem <b>60 segundos</b> para acender as <b>velas</b> 🕯️ espalhadas no escuro (5 na fase 1, e cada fase traz mais velas, mais paredes e mais fantasmas). Você tem 3 vidas ❤️: se perder todas, recomeça do zero e fugir pela porta 🚪.</p><p>Um fantasma 👻 já sente o seu cheiro. Quanto mais velas você acende, mais rápido ele fica.</p><p><small>Setas ou WASD para mover · No celular, toque e arraste</small></p><button id="b">Começar (Espaço)</button>`;
+  document.getElementById('b').onclick=start;
+}
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(!e.repeat&&state!=='play'){const b=document.getElementById('b');if(b)b.click()}return}keys[e.key.toLowerCase()]=true;if(e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function pt(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+cv.addEventListener('pointerdown',e=>{ptr=pt(e);cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(ptr)ptr=pt(e)});
+cv.addEventListener('pointerup',()=>ptr=null);
+cv.addEventListener('pointercancel',()=>ptr=null);
+
+function update(dt){
+  left-=dt;
+  let dx=0,dy=0;
+  if(keys['arrowleft']||keys['a'])dx--;
+  if(keys['arrowright']||keys['d'])dx++;
+  if(keys['arrowup']||keys['w'])dy--;
+  if(keys['arrowdown']||keys['s'])dy++;
+  if(ptr){const ax=ptr.x-p.x,ay=ptr.y-p.y;if(Math.hypot(ax,ay)>8){dx=ax;dy=ay}}
+  const m=Math.hypot(dx,dy);
+  if(m>0){
+    dx/=m;dy/=m;const sp=125*dt;
+    let nx=p.x+dx*sp;if(!hitWall(nx,p.y,p.r)&&nx>p.r&&nx<W-p.r)p.x=nx;
+    let ny=p.y+dy*sp;if(!hitWall(p.x,ny,p.r)&&ny>p.r&&ny<H-p.r)p.y=ny;
+  }
+  for(let i=relics.length-1;i>=0;i--){
+    if(Math.hypot(relics[i].x-p.x,relics[i].y-p.y)<20){
+      relics.splice(i,1);got++;shake=.25;
+      msg=got<NEED?'Uma vela acesa... ele ficou mais rápido.':'Todas acesas! Corra para a porta!';
+    }
+  }
+  // fantasma (atravessa paredes)
+  if(left<TOTAL-4){
+    for(const ghost of ghosts){ghost.a=Math.min(1,ghost.a+dt/2);
+    const gx=p.x-ghost.x,gy=p.y-ghost.y,gd=Math.hypot(gx,gy)||1;
+    const gs=Math.min(110,36+lvl*7+got*(8+lvl*.5)+(TOTAL-left)*.5)*dt*ghost.a;
+    ghost.x+=gx/gd*gs;ghost.y+=gy/gd*gs;
+    if(gd<17)return end(false,'O fantasma te alcançou. A escuridão te levou.');}
+  }
+  if(shake>0)shake-=dt;
+  if(got>=NEED&&p.x+p.r>door.x&&p.y+p.r>door.y)return end(true);
+  if(left<=0){left=0;end(false,'Meia-noite. O relógio badalou e o ritual foi concluído.')}
+}
+function draw(t){
+  ctx.save();
+  const near=Math.max(0,...ghosts.map(g=>g.a>0?1-Math.hypot(p.x-g.x,p.y-g.y)/200:0));
+  if(shake>0||near>.5)ctx.translate((Math.random()-.5)*(3+near*5),(Math.random()-.5)*(3+near*5));
+  ctx.fillStyle='#1c1316';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#2a1c20';
+  for(let x=0;x<W;x+=40)for(let y=0;y<H;y+=40)if((x+y)%80==0)ctx.fillRect(x,y,40,40);
+  ctx.fillStyle='#4a363b';for(const w of walls)ctx.fillRect(...w);
+  // porta
+  ctx.fillStyle=got>=NEED?'#2d6a3a':'#5a1a1f';ctx.fillRect(door.x,door.y,door.w,door.h);
+  ctx.font='26px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(got>=NEED?'🚪':'🔒',door.x+door.w/2+2,door.y+door.h/2);
+  for(const r of relics){ctx.font='24px serif';ctx.fillText('🕯️',r.x,r.y+Math.sin(t/300+r.x)*2)}
+  ctx.font='24px serif';ctx.fillText('🧍',p.x,p.y);
+  for(const ghost of ghosts)if(ghost.a>0){ctx.globalAlpha=ghost.a;ctx.font='28px serif';ctx.fillText('👻',ghost.x,ghost.y);ctx.globalAlpha=1}
+  // escuridão com lanterna
+  const base=Math.max(95,150-lvl*8);const rad=(left<10?base-40:base)+Math.sin(t/90)*(left<10?10:4);
+  const g=ctx.createRadialGradient(p.x,p.y,15,p.x,p.y,rad);
+  g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.6,'rgba(0,0,0,.55)');g.addColorStop(1,'rgba(0,0,0,.985)');
+  ctx.fillStyle=g;ctx.fillRect(-10,-10,W+20,H+20);
+  // olhos do fantasma no escuro
+  for(const ghost of ghosts)if(ghost.a>0){
+    ctx.fillStyle='rgba(255,40,40,'+(.4+.4*Math.sin(t/150))*ghost.a+')';
+    ctx.beginPath();ctx.arc(ghost.x-5,ghost.y-3,2.5,0,7);ctx.arc(ghost.x+5,ghost.y-3,2.5,0,7);ctx.fill();
+  }
+  // vinheta vermelha de perigo
+  if(near>0){const v=ctx.createRadialGradient(W/2,H/2,150,W/2,H/2,420);v.addColorStop(0,'rgba(120,0,0,0)');v.addColorStop(1,'rgba(160,0,0,'+near*.6+')');ctx.fillStyle=v;ctx.fillRect(0,0,W,H)}
+  ctx.restore();
+  // HUD
+  ctx.textBaseline='top';ctx.textAlign='left';ctx.font='bold 20px Georgia';
+  ctx.fillStyle=left<10?'#ff3b3b':'#e8dcd0';
+  ctx.fillText('⏱ '+Math.ceil(left)+'s',12,10);
+  ctx.fillStyle='#e8dcd0';ctx.fillText('🕯️ '+got+'/'+NEED,12,36);
+  ctx.textAlign='right';ctx.fillText('Fase '+lvl,W-12,10);ctx.fillText('Pontos: '+(total+got*100),W-12,36);ctx.fillText('❤️'.repeat(lives),W-12,62);
+  ctx.textAlign='center';ctx.font='15px Georgia';ctx.fillStyle='#bfa';ctx.fillText(msg,W/2,H-24);
+  // barra de tempo
+  ctx.fillStyle='#300';ctx.fillRect(0,H-6,W,6);ctx.fillStyle=left<10?'#f33':'#c0262d';ctx.fillRect(0,H-6,W*left/TOTAL,6);
+}
+function loop(t){
+  const dt=Math.min(.05,(t-last)/1000);last=t;
+  if(state==='play')update(dt);
+  if(state!=='menu')draw(t);
+  requestAnimationFrame(loop);
+}
+menu();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
